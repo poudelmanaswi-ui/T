@@ -51,6 +51,7 @@ function Timer() {
   const [pi, setPi] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const [running, setRunning] = useState(false);
+  const [stopped, setStopped] = useState(false);
   const iv = useRef(null);
   const p = PRESETS[pi];
 
@@ -63,69 +64,100 @@ function Timer() {
     return () => clearInterval(iv.current);
   }, [running]);
 
-  function pick(i) { setPi(i); setElapsed(0); setRunning(false); }
-  function reset()  { setElapsed(0); setRunning(false); }
+  function pick(i) { setPi(i); setElapsed(0); setRunning(false); setStopped(false); }
+  function reset()  { setElapsed(0); setRunning(false); setStopped(false); }
+  function toggle() {
+    if (running) { setRunning(false); setStopped(true); }
+    else { setRunning(true); setStopped(false); }
+  }
 
-  let col = "#ffffff", sig = elapsed === 0 ? "READY" : "SPEAKING";
-  let gOn = false, yOn = false, rOn = false;
-  if      (elapsed >= p.r) { col = "#ef4444"; sig = "OVER TIME";   rOn = true; }
-  else if (elapsed >= p.y) { col = "#eab308"; sig = "WRAPPING UP"; yOn = true; }
-  else if (elapsed >= p.g) { col = "#22c55e"; sig = "IN RANGE";    gOn = true; }
+  // Color state
+  let bgColor = "#111827", sigColor = "#fff", sigText = "READY";
+  if      (elapsed >= p.r) { bgColor = "#7f1d1d"; sigColor = "#fca5a5"; sigText = "OVER TIME"; }
+  else if (elapsed >= p.y) { bgColor = "#713f12"; sigColor = "#fde68a"; sigText = "WRAPPING UP"; }
+  else if (elapsed >= p.g) { bgColor = "#14532d"; sigColor = "#86efac"; sigText = "IN RANGE"; }
+  else if (running)         { bgColor = "#1e1b4b"; sigColor = "#c4b5fd"; sigText = "SPEAKING"; }
+
+  const hasStarted = elapsed > 0 || running;
+  const showTime = !running && hasStarted; // only show time when paused/stopped
 
   return (
-    <div style={{textAlign:"center", padding:"8px 0 16px"}}>
-      <div style={{display:"flex",gap:6,justifyContent:"center",flexWrap:"wrap",marginBottom:24}}>
-        {PRESETS.map((pr,i) => (
-          <button key={i} onClick={() => pick(i)} style={{
-            padding:"10px 14px", borderRadius:8,
-            border: `2px solid ${pi===i ? "#7c6af7" : "#374151"}`,
-            background: pi===i ? "#2a2060" : "#1f2937",
-            color:"#fff", cursor:"pointer", fontSize:13, lineHeight:1.5
-          }}>
-            <div style={{fontWeight:700}}>{pr.label}</div>
-            <div style={{fontSize:11,color:"#9ca3af"}}>{pr.sub}</div>
-          </button>
-        ))}
+    <div style={{
+      minHeight: "70vh", borderRadius: 16, padding: 24,
+      background: bgColor, transition: "background 0.6s",
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "space-between"
+    }}>
+
+      {/* TOP — preset buttons, always visible */}
+      <div style={{width:"100%"}}>
+        <div style={{display:"flex",gap:6,justifyContent:"center",flexWrap:"wrap",marginBottom:16}}>
+          {PRESETS.map((pr,i) => (
+            <button key={i} onClick={() => pick(i)} style={{
+              padding:"9px 12px", borderRadius:8,
+              border: `2px solid ${pi===i ? "#a78bfa" : "rgba(255,255,255,0.2)"}`,
+              background: pi===i ? "rgba(124,106,247,0.4)" : "rgba(0,0,0,0.25)",
+              color:"#fff", cursor:"pointer", fontSize:12, lineHeight:1.5
+            }}>
+              <div style={{fontWeight:700}}>{pr.label}</div>
+              <div style={{fontSize:10,color:"rgba(255,255,255,0.6)"}}>{pr.sub}</div>
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div style={{fontSize:96,fontWeight:900,color:col,letterSpacing:-4,lineHeight:1,transition:"color 0.3s"}}>
-        {fmt(elapsed)}
-      </div>
-      <div style={{fontSize:11,letterSpacing:3,color:"#6b7280",margin:"8px 0 24px"}}>{sig}</div>
+      {/* MIDDLE — color signal area */}
+      <div style={{flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:16, padding:"20px 0"}}>
 
-      <div style={{display:"flex",gap:28,justifyContent:"center",marginBottom:8}}>
-        {[
-          {bg:"#22c55e", on:gOn, lbl:fmt(p.g)},
-          {bg:"#eab308", on:yOn, lbl:fmt(p.y)},
-          {bg:"#ef4444", on:rOn, lbl:fmt(p.r)}
-        ].map((l,i) => (
-          <div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
-            <div style={{
-              width:56, height:56, borderRadius:"50%", background:l.bg,
-              opacity: l.on ? 1 : 0.18,
-              boxShadow: l.on ? `0 0 22px 4px ${l.bg}` : "none",
-              transition:"all 0.3s"
-            }}/>
-            <span style={{fontSize:12,color:"#6b7280"}}>{l.lbl}</span>
-          </div>
-        ))}
-      </div>
-
-      <div style={{display:"flex",gap:10,justifyContent:"center",marginTop:20}}>
-        <button onClick={() => setRunning(r => !r)} style={{
-          padding:"13px 36px", borderRadius:10, border:"none",
-          background:"#7c6af7", color:"#fff", fontSize:17, fontWeight:700, cursor:"pointer"
+        {/* Big color indicator circle */}
+        <div style={{
+          width: 160, height: 160, borderRadius: "50%",
+          background: elapsed >= p.r ? "#ef4444" : elapsed >= p.y ? "#eab308" : elapsed >= p.g ? "#22c55e" : "rgba(255,255,255,0.08)",
+          boxShadow: elapsed >= p.r ? "0 0 60px 20px #ef4444" :
+                     elapsed >= p.y ? "0 0 60px 20px #eab308" :
+                     elapsed >= p.g ? "0 0 60px 20px #22c55e" : "none",
+          transition: "all 0.5s",
+          display:"flex", alignItems:"center", justifyContent:"center"
         }}>
-          {running ? "⏸ Pause" : "▶ Start"}
+          {/* Show elapsed time only when stopped */}
+          {showTime && (
+            <div style={{textAlign:"center"}}>
+              <div style={{fontSize:32,fontWeight:900,letterSpacing:-1,color:"#fff"}}>{fmt(elapsed)}</div>
+              <div style={{fontSize:11,color:"rgba(255,255,255,0.7)",letterSpacing:1}}>elapsed</div>
+            </div>
+          )}
+        </div>
+
+        {/* Status text */}
+        <div style={{fontSize:13,fontWeight:700,letterSpacing:3,color:sigColor,textTransform:"uppercase"}}>
+          {sigText}
+        </div>
+
+        {/* Preset label */}
+        <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",letterSpacing:1}}>
+          {PRESETS[pi].label} · {PRESETS[pi].sub}
+        </div>
+      </div>
+
+      {/* BOTTOM — controls */}
+      <div style={{display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap"}}>
+        <button onClick={toggle} style={{
+          padding:"13px 40px", borderRadius:10, border:"none",
+          background: running ? "rgba(0,0,0,0.4)" : "#7c6af7",
+          color:"#fff", fontSize:17, fontWeight:700, cursor:"pointer",
+          border: running ? "2px solid rgba(255,255,255,0.3)" : "none"
+        }}>
+          {running ? "⏸ Pause" : elapsed > 0 ? "▶ Resume" : "▶ Start"}
         </button>
         <button onClick={reset} style={{
           padding:"13px 24px", borderRadius:10,
-          border:"1px solid #374151", background:"#1f2937",
+          border:"2px solid rgba(255,255,255,0.2)",
+          background:"rgba(0,0,0,0.25)",
           color:"#fff", fontSize:17, cursor:"pointer"
         }}>
           ↺ Reset
         </button>
       </div>
+
     </div>
   );
 }
@@ -282,7 +314,6 @@ function App() {
     ["timer","⏱ Timer"],["roles","👥 Roles"],["ah","💬 Ah Counter"],
     ["word","📖 Word"],["agenda","📋 Agenda"]
   ];
-  const card = {background:"#1f2937",borderRadius:12,padding:20};
   return (
     <div style={{minHeight:"100vh",background:"#111827",padding:16}}>
       <div style={{maxWidth:720,margin:"0 auto"}}>
@@ -299,7 +330,7 @@ function App() {
             }}>{label}</button>
           ))}
         </div>
-        <div style={card}>
+        <div style={{background:"#1f2937",borderRadius:12,padding:20}}>
           {tab==="timer"  && <Timer/>}
           {tab==="roles"  && <Roles/>}
           {tab==="ah"     && <AhCounter/>}
